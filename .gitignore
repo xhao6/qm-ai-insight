@@ -35,3 +35,4 @@ e2e/playwright-report/
 # 仅本地交接/规范（禁止 push 远端）
 handoff.md
 AGENTS.md
+docs/00-作品集方案归档.md
