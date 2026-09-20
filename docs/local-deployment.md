@@ -50,9 +50,9 @@ LIMA_HOME=~/.colima/_lima limactl shell colima sh -c \
 ## 3. 中间件容器
 
 ```bash
-# MySQL（建库 yubi，root/123456 为本地演示口令，生产走环境变量）
+# MySQL（建库 yubi，root/${DB_PASSWORD} 为本地演示口令，生产走环境变量）
 docker run -d --name yubi-mysql --restart unless-stopped \
-  -e MYSQL_ROOT_PASSWORD=123456 -e MYSQL_DATABASE=yubi \
+  -e MYSQL_ROOT_PASSWORD=${DB_PASSWORD} -e MYSQL_DATABASE=yubi \
   -p 3306:3306 mysql:8
 
 # RabbitMQ（含管理台）
@@ -69,7 +69,7 @@ docker run -d --name yubi-redis --restart unless-stopped \
 ```bash
 docker ps                          # 容器状态
 docker logs -f yubi-mysql          # 看日志
-docker exec yubi-mysql mysqladmin ping -uroot -p123456 --silent   # MySQL 就绪探测
+docker exec yubi-mysql mysqladmin ping -uroot -p${DB_PASSWORD} --silent   # MySQL 就绪探测
 ```
 
 ## 4. 初始化
@@ -77,9 +77,9 @@ docker exec yubi-mysql mysqladmin ping -uroot -p123456 --silent   # MySQL 就绪
 ### 4.1 建库建表
 
 ```bash
-docker exec -i yubi-mysql mysql -uroot -p123456 < backend/sql/create_table.sql
+docker exec -i yubi-mysql mysql -uroot -p${DB_PASSWORD} < backend/sql/create_table.sql
 # 验证
-docker exec yubi-mysql mysql -uroot -p123456 -e "USE yubi; SHOW TABLES;"   # chart, user
+docker exec yubi-mysql mysql -uroot -p${DB_PASSWORD} -e "USE yubi; SHOW TABLES;"   # chart, user
 ```
 
 ### 4.2 RabbitMQ 队列声明（必须手动执行）
@@ -117,7 +117,7 @@ nohup mvn -q org.springframework.boot:spring-boot-maven-plugin:run > /tmp/yubi-b
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/api/doc.html   # 200
 ```
 
-配置文件 `backend/src/main/resources/application.yml` 本地默认值：MySQL `localhost:3306/yubi`（root/123456）、RabbitMQ `localhost:5672`（guest/guest）、Redis `localhost:6379`、AI 密钥为占位符（走环境变量）。
+配置文件 `backend/src/main/resources/application.yml` 本地默认值：MySQL `localhost:3306/yubi`（root/${DB_PASSWORD}）、RabbitMQ `localhost:5672`（guest/guest）、Redis `localhost:6379`、AI 密钥为占位符（走环境变量）。
 
 ## 6. 前端启动
 
