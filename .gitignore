@@ -26,9 +26,12 @@ pipeline/.venv/
 .env.*
 !.env.example
 
-# yupi源码素材（授权范围内本地使用，不入库/不公开）
+# 第三方源码素材（授权范围内本地使用，不入库/不公开）
 templates/*.zip
 
 # Test artifacts
 e2e/test-results/
 e2e/playwright-report/
+# 仅本地交接/规范（禁止 push 远端）
+handoff.md
+AGENTS.md
