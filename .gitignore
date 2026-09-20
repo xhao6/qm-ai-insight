@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.eslintcache
+
+# Backend (Maven)
+backend/target/
+
+# Python pipeline
+pipeline/__pycache__/
+pipeline/.venv/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# yupi源码素材（授权范围内本地使用，不入库/不公开）
+templates/*.zip
+
+# Test artifacts
+e2e/test-results/
+e2e/playwright-report/
