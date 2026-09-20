@@ -3,7 +3,7 @@ import { DefaultFooter } from '@ant-design/pro-components';
 import '@umijs/max';
 import React from 'react';
 const Footer: React.FC = () => {
-  const defaultMessage = '编程导航知识星球出品';
+  const defaultMessage = 'AI Insight Platform';
   const currentYear = new Date().getFullYear();
   return (
     <DefaultFooter

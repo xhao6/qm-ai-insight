@@ -1,6 +1,6 @@
 # AI Insight Platform — 制造/销售数据洞察平台
 
-> 作品集项目：基于智能 BI 源项目二开的**数据洞察平台**——聚焦**制造质量数据**与**销售数据**两大业务域，以 AIGC 驱动数据分析与图表生成。
+> 基于智能 BI 源项目二开的**数据洞察平台**——聚焦**制造质量数据**与**销售数据**两大业务域，以 AIGC 驱动数据分析与图表生成。
 
 ## 定位
 
@@ -39,7 +39,7 @@ cd frontend && pnpm install && pnpm dev
 backend/     Spring Boot 后端（源项目 + 二开模块）
 frontend/    React 前端
 pipeline/    Python 模拟数据生成器（规划）
-docs/        方案归档 · 数据模型口径（data-model.md 待建）
+docs/        数据口径设计文档（data-model.md 待建）
 e2e/         Playwright 测试套件（规划）
 ```
 
@@ -51,4 +51,4 @@ e2e/         Playwright 测试套件（规划）
 - [ ] AIGC 分析 + 销售模板（W2）
 - [ ] 测试套件 + 部署（W3）
 
-详见 `docs/` 设计文档（内部资料，不入库）。
+数据口径详见 `docs/data-model.md`（规划中）。

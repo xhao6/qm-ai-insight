@@ -91,7 +91,7 @@ cos:
     secretKey: xxx
     region: xxx
     bucket: xxx
-# 鱼聪明 AI 配置（https://yucongming.com/）
+# AI 平台配置（密钥从环境变量读取，勿写入明文）
 yuapi:
   client:
     access-key: 替换为你自己的 access-key

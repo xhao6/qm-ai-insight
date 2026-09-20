@@ -87,11 +87,7 @@ const Login: React.FC = () => {
           }}
           logo={<img alt="logo" src="/logo.svg" />}
           title="AI Insight Platform"
-          subTitle={
-            <a href="https://yupi.icu" target="_blank">
-              编程导航知识星球的原创项目
-            </a>
-          }
+          subTitle={'制造/销售数据洞察平台'}
           onFinish={async (values) => {
             await handleSubmit(values as API.UserLoginRequest);
           }}

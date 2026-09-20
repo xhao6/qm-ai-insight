@@ -41,8 +41,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 /**
  * 帖子接口
  *
- * @author <a href="https://github.com/liyupi">yupi</a>
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
  */
 @RestController
 @RequestMapping("/chart")
@@ -260,7 +258,7 @@ public class ChartController {
         User loginUser = userService.getLoginUser(request);
         // 限流判断，每个用户一个限流器
         redisLimiterManager.doRateLimit("genChartByAi_" + loginUser.getId());
-        // 无需写 prompt，直接调用现有模型，https://www.yucongming.com，公众号搜【鱼聪明AI】
+        // 直接调用现有模型，无需手写 prompt
 //        final String prompt = "你是一个数据分析师和前端开发专家，接下来我会按照以下固定格式给你提供内容：\n" +
 //                "分析需求：\n" +
 //                "{数据分析的需求或者目标}\n" +
@@ -351,7 +349,7 @@ public class ChartController {
         User loginUser = userService.getLoginUser(request);
         // 限流判断，每个用户一个限流器
         redisLimiterManager.doRateLimit("genChartByAi_" + loginUser.getId());
-        // 无需写 prompt，直接调用现有模型，https://www.yucongming.com，公众号搜【鱼聪明AI】
+        // 直接调用现有模型，无需手写 prompt
 //        final String prompt = "你是一个数据分析师和前端开发专家，接下来我会按照以下固定格式给你提供内容：\n" +
 //                "分析需求：\n" +
 //                "{数据分析的需求或者目标}\n" +
@@ -465,7 +463,7 @@ public class ChartController {
         User loginUser = userService.getLoginUser(request);
         // 限流判断，每个用户一个限流器
         redisLimiterManager.doRateLimit("genChartByAi_" + loginUser.getId());
-        // 无需写 prompt，直接调用现有模型，https://www.yucongming.com，公众号搜【鱼聪明AI】
+        // 直接调用现有模型，无需手写 prompt
 //        final String prompt = "你是一个数据分析师和前端开发专家，接下来我会按照以下固定格式给你提供内容：\n" +
 //                "分析需求：\n" +
 //                "{数据分析的需求或者目标}\n" +
