@@ -46,9 +46,17 @@ e2e/         Playwright 测试套件（规划）
 ## 状态与路线图
 
 - [x] 源项目落地（backend/frontend）
+- [x] 制造质量洞察模块（W1）
 - [ ] 数据生成设计文档（docs/data-model.md）
-- [ ] 制造质量洞察模块（W1）
 - [ ] AIGC 分析 + 销售模板（W2）
 - [ ] 测试套件 + 部署（W3）
 
 数据口径详见 `docs/data-model.md`（规划中）。
+
+## 模块说明
+
+### 制造质量洞察
+
+- **后端**：`/api/quality/*` 接口——良率 / OEE / SPC / 缺陷分析（`backend/src/main/java/com/yupi/springbootinit/` 下 `controller/`、`service/`）
+- **前端**：`/quality` 页面，ECharts 可视化（`frontend/src/`）
+- **数据**：Python pipeline 生成模拟制造数据（`pipeline/`）
