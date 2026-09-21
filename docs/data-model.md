@@ -8,7 +8,7 @@
 
 - **全部演示数据由自建模拟数据生成器产出**，不引入任何真实业务数据。
 - 生成器参数化，支持制造/销售双模板切换（本文档仅覆盖制造模板）。
-- 每张表的 `created_at` / `updated_at` 由生成器写入，时区统一 UTC+8。
+- 每张表的 `create_time` / `update_time` 由生成器写入，时区统一 UTC+8。
 
 ---
 
@@ -22,11 +22,10 @@
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| 基线目标 | 96.5% | 生成器中心值 |
-| 日度下限 | 94.5% | 生成器钳位下限 |
-| 日度上限 | 99.5% | 生成器钳位上限 |
+| 基线目标 | ≥95% | 口径下限；允许日度波动 [94.5%, 99.5%] |
+| 生成器中心值 | 96.5% | 正态分布均值，确保日度良率大多 ≥95% |
 
-生成器在 [94.5%, 99.5%] 区间内以 96.5% 为均值生成随机良率值，确保不出现极端异常值。
+生成器在 [94.5%, 99.5%] 区间内以 96.5% 为均值生成随机良率值，确保日度良率大多达到或超过 95% 基线目标。
 
 > **良率与 OEE 的关系**：良率直接对应 OEE 三分量中的 **质量分量 (Quality)**，二者数值完全相同（见 2.2 节）。
 
@@ -163,106 +162,95 @@ adjusted_plan = base_plan × SEASON_FACTOR[month - 1]
 ### 3.1 prod_line（产线）
 
 ```sql
-CREATE TABLE prod_line (
-    id          BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    line_id     VARCHAR(20) NOT NULL UNIQUE COMMENT '产线标识: L1/L2/L3',
-    line_name   VARCHAR(50) NOT NULL COMMENT '产线名称: 冲压线/焊接线/总装线',
-    line_type   VARCHAR(20) NOT NULL COMMENT '产线类型: stamping/welding/assembly',
-    capacity    INT NOT NULL COMMENT '日最大产能(件)',
-    status      TINYINT DEFAULT 1 COMMENT '状态: 1=运行 0=停机',
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) COMMENT '产线主数据';
+CREATE TABLE IF NOT EXISTS prod_line (
+  id bigint AUTO_INCREMENT PRIMARY KEY,
+  name varchar(64) NOT NULL,
+  plant varchar(64) NOT NULL,
+  create_time datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  update_time datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+  is_delete tinyint DEFAULT 0 NOT NULL
+) COMMENT='产线' collate utf8mb4_unicode_ci;
 ```
 
 ### 3.2 prod_process（工序）
 
 ```sql
-CREATE TABLE prod_process (
-    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    process_id      VARCHAR(30) NOT NULL UNIQUE COMMENT '工序标识: L1_P1..L1_P4, L2_P1..L2_P4, L3_P1..L3_P4',
-    line_id         VARCHAR(20) NOT NULL COMMENT '所属产线标识',
-    process_name    VARCHAR(50) NOT NULL COMMENT '工序名称',
-    process_order   INT NOT NULL COMMENT '工序顺序: 1/2/3/4',
-    ideal_cycle     DECIMAL(8,2) NOT NULL COMMENT '理想节拍时间(秒/件)',
-    param_upper     DECIMAL(10,4) COMMENT '计量参数规格上限(仅计量型工序)',
-    param_lower     DECIMAL(10,4) COMMENT '计量参数规格下限(仅计量型工序)',
-    param_target    DECIMAL(10,4) COMMENT '计量参数目标值(仅计量型工序)',
-    is计量型       TINYINT DEFAULT 0 COMMENT '是否为计量型工序: 1=是(产出SPC数据) 0=否(仅质检计数)',
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    INDEX idx_line_id (line_id)
-) COMMENT '工序主数据';
+CREATE TABLE IF NOT EXISTS prod_process (
+  id bigint AUTO_INCREMENT PRIMARY KEY,
+  line_id bigint NOT NULL,
+  name varchar(64) NOT NULL,
+  seq int NOT NULL,
+  param_name varchar(64) NOT NULL,
+  param_target double NOT NULL,
+  param_usl double NOT NULL,
+  param_lsl double NOT NULL,
+  create_time datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  update_time datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+  is_delete tinyint DEFAULT 0 NOT NULL,
+  KEY idx_line (line_id)
+) COMMENT='工序' collate utf8mb4_unicode_ci;
 ```
 
-> 注：`is计量型` 字段控制该工序是否产出 SPC 样本数据。计数型质检工序（各线的第 4 道工序）该字段为 0。
-
-### 3.3 prod_daily_metrics（日度产线指标）
+### 3.3 prod_daily_metrics（产线日指标）
 
 ```sql
-CREATE TABLE prod_daily_metrics (
-    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    line_id         VARCHAR(20) NOT NULL COMMENT '产线标识',
-    metric_date     DATE NOT NULL COMMENT '指标日期',
-    plan_qty        INT NOT NULL COMMENT '计划产量(件)',
-    actual_qty      INT NOT NULL COMMENT '实际产出(件)',
-    qualified_qty   INT NOT NULL COMMENT '合格品数量(件)',
-    defect_qty      INT NOT NULL COMMENT '缺陷品数量(件) = SUM(prod_defect_record.qty)',
-    yield_rate      DECIMAL(5,4) NOT NULL COMMENT '良率 = qualified_qty / actual_qty',
-    availability    DECIMAL(5,4) NOT NULL COMMENT '可用率 = 运行时间 / 计划时间',
-    performance     DECIMAL(5,4) NOT NULL COMMENT '性能 = (actual_qty × ideal_cycle) / 运行时间',
-    quality_rate    DECIMAL(5,4) NOT NULL COMMENT '质量分量 = 同良率',
-    oee             DECIMAL(5,4) NOT NULL COMMENT 'OEE = availability × performance × quality_rate',
-    planned_hours   DECIMAL(6,2) NOT NULL COMMENT '计划生产时间(小时)',
-    actual_hours    DECIMAL(6,2) NOT NULL COMMENT '实际运行时间(小时)',
-    season_factor   DECIMAL(5,4) DEFAULT 1.0000 COMMENT '当月季节因子',
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    UNIQUE KEY uk_line_date (line_id, metric_date)
-) COMMENT '产线日度OEE及良率指标';
+CREATE TABLE IF NOT EXISTS prod_daily_metrics (
+  id bigint AUTO_INCREMENT PRIMARY KEY,
+  stat_date date NOT NULL,
+  line_id bigint NOT NULL,
+  plan_qty int NOT NULL,
+  output_qty int NOT NULL,
+  good_qty int NOT NULL,
+  defect_qty int NOT NULL,
+  available_time_min int NOT NULL,
+  run_time_min int NOT NULL,
+  ideal_cycle_min double NOT NULL,
+  actual_cycle_min double NOT NULL,
+  create_time datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  update_time datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+  is_delete tinyint DEFAULT 0 NOT NULL,
+  UNIQUE KEY uk_date_line (stat_date, line_id)
+) COMMENT='产线日指标' collate utf8mb4_unicode_ci;
 ```
 
-### 3.4 prod_spc_sample（SPC 样本数据）
+### 3.4 prod_defect_record（缺陷记录）
 
 ```sql
-CREATE TABLE prod_spc_sample (
-    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    process_id      VARCHAR(30) NOT NULL COMMENT '工序标识',
-    sample_date     DATE NOT NULL COMMENT '采样日期',
-    sample_time     TIME NOT NULL COMMENT '采样时间',
-    subgroup_id     INT NOT NULL COMMENT '子组编号(当日第几个子组)',
-    measure_value   DECIMAL(10,4) NOT NULL COMMENT '计量测量值',
-    subgroup_mean   DECIMAL(10,4) COMMENT '子组均值(子组内最后一条写入)',
-    subgroup_range  DECIMAL(10,4) COMMENT '子组极差(子组内最后一条写入)',
-    ucl             DECIMAL(10,4) COMMENT '控制上限(UCL)',
-    lcl             DECIMAL(10,4) COMMENT '控制下限(LCL)',
-    is_out_of_control TINYINT DEFAULT 0 COMMENT '是否出界: 1=超出控制限 0=正常',
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    INDEX idx_process_date (process_id, sample_date),
-    INDEX idx_out_of_control (is_out_of_control)
-) COMMENT 'SPC X̄-R控制图采样数据(仅计量型工序)';
+CREATE TABLE IF NOT EXISTS prod_defect_record (
+  id bigint AUTO_INCREMENT PRIMARY KEY,
+  stat_date date NOT NULL,
+  line_id bigint NOT NULL,
+  process_id bigint NOT NULL,
+  defect_code varchar(32) NOT NULL,
+  defect_name varchar(64) NOT NULL,
+  qty int NOT NULL,
+  severity tinyint NOT NULL COMMENT '1轻微 2一般 3严重',
+  create_time datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  update_time datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+  is_delete tinyint DEFAULT 0 NOT NULL,
+  KEY idx_date_line (stat_date, line_id)
+) COMMENT='缺陷记录' collate utf8mb4_unicode_ci;
 ```
 
-**`actual_cycle_min` 说明**：生成器同时写入每条样本的 `actual_cycle_min`（实际节拍，单位：分钟），供未来节拍分析和性能分量深度诊断使用。当前 OEE 性能分量计算使用 `ideal_cycle` 而非实际节拍，`actual_cycle_min` 仅作为数据预留字段。
-
-### 3.5 prod_defect_record（缺陷记录）
+### 3.5 prod_spc_sample（SPC 样本）
 
 ```sql
-CREATE TABLE prod_defect_record (
-    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
-    process_id      VARCHAR(30) NOT NULL COMMENT '工序标识(缺陷发生工序)',
-    record_date     DATE NOT NULL COMMENT '记录日期',
-    defect_type     VARCHAR(30) NOT NULL COMMENT '缺陷类型: surface_scratch/assembly_defect/weld_defect/dimension_error/leak_test',
-    defect_name     VARCHAR(50) NOT NULL COMMENT '缺陷中文名称: 划伤/装配不良/焊接缺陷/尺寸偏差/泄漏',
-    qty             INT NOT NULL COMMENT '缺陷数量(件)',
-    severity        VARCHAR(10) DEFAULT 'medium' COMMENT '严重程度: low/medium/high',
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    INDEX idx_date_process (record_date, process_id),
-    INDEX idx_defect_type (defect_type)
-) COMMENT '缺陷类型明细记录';
+CREATE TABLE IF NOT EXISTS prod_spc_sample (
+  id bigint AUTO_INCREMENT PRIMARY KEY,
+  stat_date date NOT NULL,
+  process_id bigint NOT NULL,
+  sample_no tinyint NOT NULL COMMENT '子组内序号 1-5',
+  value double NOT NULL,
+  create_time datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  update_time datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+  is_delete tinyint DEFAULT 0 NOT NULL,
+  KEY idx_date_process (stat_date, process_id)
+) COMMENT='SPC样本' collate utf8mb4_unicode_ci;
 ```
 
-**两口径一致性保证**：生成器在写入 `prod_defect_record` 后，汇总同一 `(line_id, record_date)` 的 `SUM(qty)` 写入 `prod_daily_metrics.defect_qty`。
+> **`actual_cycle_min` 说明**：`prod_daily_metrics.actual_cycle_min` 由生成器写入（= ideal_cycle_min / performance），供未来节拍分析使用。当前 OEE 性能分量计算使用 `ideal_cycle_min` 而非实际节拍。
+
+**两口径一致性保证**：生成器按工序权重×类型权重两级最大余数法分摊日 `defect_qty` 到 `prod_defect_record`，确保 `SUM(qty)` 严格等于 `prod_daily_metrics.defect_qty`。
 
 ---
 
@@ -271,48 +259,28 @@ CREATE TABLE prod_defect_record (
 ### 4.1 产线与工序定义
 
 ```python
-LINES = {
-    "L1": {"name": "冲压线", "type": "stamping", "capacity": 500},
-    "L2": {"name": "焊接线", "type": "welding", "capacity": 450},
-    "L3": {"name": "总装线", "type": "assembly", "capacity": 400},
-}
-
-PROCESSES = {
-    "L1": [
-        {"id": "L1_P1", "name": "下料", "ideal_cycle": 8.5, "计量型": True},
-        {"id": "L1_P2", "name": "成型", "ideal_cycle": 12.0, "计量型": True},
-        {"id": "L1_P3", "name": "修边", "ideal_cycle": 10.0, "计量型": True},
-        {"id": "L1_P4", "name": "质检", "ideal_cycle": 6.0,  "计量型": False},
-    ],
-    "L2": [
-        {"id": "L2_P1", "name": "点焊", "ideal_cycle": 15.0, "计量型": True},
-        {"id": "L2_P2", "name": "弧焊", "ideal_cycle": 20.0, "计量型": True},
-        {"id": "L2_P3", "name": "打磨", "ideal_cycle": 11.0, "计量型": True},
-        {"id": "L2_P4", "name": "质检", "ideal_cycle": 7.0,  "计量型": False},
-    ],
-    "L3": [
-        {"id": "L3_P1", "name": "装配", "ideal_cycle": 18.0, "计量型": False},
-        {"id": "L3_P2", "name": "拧紧", "ideal_cycle": 14.0, "计量型": True},
-        {"id": "L3_P3", "name": "检测", "ideal_cycle": 9.0,  "计量型": True},
-        {"id": "L3_P4", "name": "包装", "ideal_cycle": 8.0,  "计量型": False},
-    ],
-}
+LINES = [
+    {"name": "冲压线", "plant": "Plant A",
+     "processes": [("下料", "板厚", 1.20, 1.28, 1.12), ("成型", "板厚", 1.20, 1.28, 1.12),
+                   ("修边", "毛刺高度", 0.30, 0.45, 0.15), ("质检", "外观缺陷数", 0.0, 2.0, 0.0)]},
+    {"name": "焊接线", "plant": "Plant A",
+     "processes": [("点焊", "焊接强度", 18.0, 19.5, 16.5), ("弧焊", "焊接强度", 18.0, 19.5, 16.5),
+                   ("打磨", "表面粗糙度", 3.2, 4.0, 2.4), ("质检", "焊缝缺陷数", 0.0, 3.0, 0.0)]},
+    {"name": "总装线", "plant": "Plant B",
+     "processes": [("装配", "扭矩", 25.0, 27.0, 23.0), ("拧紧", "扭矩", 25.0, 27.0, 23.0),
+                   ("检测", "泄漏率", 0.25, 0.5, 0.05), ("包装", "包装缺陷数", 0.0, 1.0, 0.0)]},
+]
 ```
 
-### 4.2 参数规格限
+每条线 4 道工序，元组格式：`(工序名, 参数名, 目标值, USL, LSL)`。计数型参数（外观缺陷数/焊缝缺陷数/包装缺陷数/泄漏率以外的计数工序）不适用 X̄-R 控制图。
 
-各计量型工序的参数规格限（用于 SPC 控制图）：
+### 4.2 计数型参数前缀
 
-| 工序 | 参数名称 | 目标值 | 规格下限 (LSL) | 规格上限 (USL) |
-|------|----------|--------|----------------|----------------|
-| L1_P1 下料 | 板材厚度 (mm) | 2.000 | 1.950 | 2.050 |
-| L1_P2 成型 | 冲压深度 (mm) | 50.00 | 49.50 | 50.50 |
-| L1_P3 修边 | 边缘宽度 (mm) | 3.00 | 2.80 | 3.20 |
-| L2_P1 点焊 | 焊点直径 (mm) | 6.00 | 5.50 | 6.50 |
-| L2_P2 弧焊 | 焊缝宽度 (mm) | 8.00 | 7.50 | 8.50 |
-| L2_P3 打磨 | 表面粗糙度 (μm) | 1.60 | 1.20 | 2.00 |
-| L3_P2 拧紧 | 扭矩 (N·m) | 25.00 | 23.00 | 27.00 |
-| L3_P3 检测 | 间隙 (mm) | 2.50 | 2.30 | 2.70 |
+```python
+COUNTING_PARAM_PREFIXES = ("外观", "焊缝", "包装")
+```
+
+生成器与 pytest 共用此常量：命中前缀的工序不产 SPC 样本（X̄-R 仅适用计量型参数）。
 
 ### 4.3 季节因子
 
@@ -324,26 +292,49 @@ SEASON_FACTOR = [1.05, 0.92, 1.02, 1.00, 1.03, 0.98, 1.01, 1.00, 1.04, 1.06, 0.9
 ### 4.4 缺陷类型定义
 
 ```python
-DEFECT_TYPES = {
-    "surface_scratch": {"name": "划伤", "severity_dist": {"low": 0.4, "medium": 0.4, "high": 0.2}},
-    "assembly_defect": {"name": "装配不良", "severity_dist": {"low": 0.3, "medium": 0.5, "high": 0.2}},
-    "weld_defect":     {"name": "焊接缺陷", "severity_dist": {"low": 0.2, "medium": 0.5, "high": 0.3}},
-    "dimension_error": {"name": "尺寸偏差", "severity_dist": {"low": 0.5, "medium": 0.3, "high": 0.2}},
-    "leak_test":       {"name": "泄漏", "severity_dist": {"low": 0.3, "medium": 0.4, "high": 0.3}},
+DEFECT_TYPES = [
+    ("surface_scratch", "划伤", 1),
+    ("assembly_defect", "装配不良", 2),
+    ("weld_defect", "焊接缺陷", 3),
+    ("dimension_error", "尺寸偏差", 2),
+    ("leak_test", "泄漏", 3),
+]
+```
+
+元组格式：`(缺陷代码, 中文名称, 严重等级)`。严重等级：1=轻微, 2=一般, 3=严重。
+
+### 4.5 缺陷-工序权重矩阵
+
+键 = `(产线, 工序)` 组合（避免跨线同名工序键覆盖），值为 DEFECT_TYPES 顺序的权重，行和为 1：
+
+```python
+DEFECT_PROCESS_MATRIX = {
+    ("冲压线", "下料"): [0.55, 0.10, 0.05, 0.20, 0.10],
+    ("冲压线", "成型"): [0.60, 0.05, 0.05, 0.25, 0.05],
+    ("冲压线", "修边"): [0.35, 0.10, 0.10, 0.40, 0.05],
+    ("冲压线", "质检"): [0.25, 0.15, 0.15, 0.35, 0.10],
+    ("焊接线", "点焊"): [0.10, 0.10, 0.60, 0.10, 0.10],
+    ("焊接线", "弧焊"): [0.05, 0.05, 0.70, 0.10, 0.10],
+    ("焊接线", "打磨"): [0.30, 0.10, 0.35, 0.15, 0.10],
+    ("焊接线", "质检"): [0.10, 0.15, 0.55, 0.10, 0.10],
+    ("总装线", "装配"): [0.10, 0.55, 0.05, 0.20, 0.10],
+    ("总装线", "拧紧"): [0.05, 0.60, 0.05, 0.15, 0.15],
+    ("总装线", "检测"): [0.10, 0.15, 0.10, 0.25, 0.40],
+    ("总装线", "包装"): [0.40, 0.25, 0.05, 0.25, 0.05],
 }
 ```
 
-### 4.5 工序缺陷权重矩阵
+每工序一个主贡献缺陷类型（35%-70%），其余按固定权重（0.05-0.40）。
 
-每行归一化为 1.0，生成器按权重将缺陷分配到对应工序：
+### 4.6 工序缺陷占比权重
+
+每线各工序的缺陷占比（与 LINES 工序顺序一致，行和为 1）——用于把日指标 `defect_qty` 分摊到工序：
 
 ```python
-DEFECT_PROCESS_WEIGHTS = {
-    "surface_scratch":  {"L1_P1": 0.1, "L1_P2": 0.3, "L1_P3": 0.2, "L2_P1": 0.1, "L2_P3": 0.3},
-    "assembly_defect":  {"L3_P1": 0.3, "L3_P2": 0.4, "L3_P3": 0.2, "L3_P4": 0.1},
-    "weld_defect":      {"L2_P1": 0.4, "L2_P2": 0.5, "L2_P3": 0.1},
-    "dimension_error":  {"L1_P1": 0.3, "L1_P2": 0.4, "L1_P3": 0.2, "L2_P3": 0.1},
-    "leak_test":        {"L2_P1": 0.3, "L2_P2": 0.3, "L2_P3": 0.4},
+PROCESS_DEFECT_WEIGHT = {
+    "冲压线": [0.35, 0.30, 0.20, 0.15],
+    "焊接线": [0.30, 0.30, 0.25, 0.15],
+    "总装线": [0.30, 0.25, 0.25, 0.20],
 }
 ```
 
