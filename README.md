@@ -21,7 +21,7 @@
 
 ## 快速启动
 
-前置：JDK 17+ · Node 18+ · MySQL 8 · RabbitMQ
+前置：JDK 17+ · Node 18+ · MySQL 8 · RabbitMQ · uv (Python)
 
 ```bash
 # 后端（先建库执行 backend/sql/create_table.sql，配置 application.yml 的 mysql/rabbitmq/AI 密钥——密钥走环境变量）
@@ -29,16 +29,19 @@ cd backend && ./mvnw spring-boot:run
 
 # 前端
 cd frontend && pnpm install && pnpm dev
+
+# 数据管道（生成 90 天模拟数据）
+cd pipeline && uv pip install -r requirements.txt && python3 main.py --days 90 --reset
 ```
 
-> 包管理：后端 mvnw / 前端 pnpm（勿引入 package-lock.json）。
+> 包管理：后端 mvnw / 前端 pnpm（勿引入 package-lock.json）/ Python uv（勿用 pip）。
 
 ## 目录结构
 
 ```
 backend/     Spring Boot 后端（源项目 + 二开模块）
 frontend/    React 前端
-pipeline/    Python 模拟数据生成器（规划）
+pipeline/    Python 模拟数据生成器（uv pip install -r requirements.txt）
 docs/        数据口径设计文档（data-model.md 待建）
 e2e/         Playwright 测试套件（规划）
 ```
@@ -47,11 +50,11 @@ e2e/         Playwright 测试套件（规划）
 
 - [x] 源项目落地（backend/frontend）
 - [x] 制造质量洞察模块（W1）
-- [ ] 数据生成设计文档（docs/data-model.md）
+- [x] 数据生成设计文档（docs/data-model.md）
 - [ ] AIGC 分析 + 销售模板（W2）
 - [ ] 测试套件 + 部署（W3）
 
-数据口径详见 `docs/data-model.md`（规划中）。
+数据口径详见 `docs/data-model.md`。
 
 ## 模块说明
 
